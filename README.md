@@ -26,8 +26,8 @@ An Android app with four on-device TFLite classifiers (pneumonia X-ray, breast u
 
 ## 实现
 
-- **迁移学习**：ImageNet 预训练的 MobileNetV2 / ResNet50V2 做骨干，上面接全局池化 + Dropout + 一个 sigmoid 输出。灰度图前面加一层 1×1 卷积，把 1 个通道映射成骨干需要的 3 个通道。
-- **训练**（`models/train_*.py`）：Keras `image_dataset_from_directory` 读数据、像素除以 255、随机翻转 / 旋转 / 缩放做数据增强；Adam；EarlyStopping、ReduceLROnPlateau；监控 AUC 或准确率。
+- **迁移学习**：ImageNet 预训练的 MobileNetV2 / ResNet50V2 做骨干，上面接全局平均池化 + 两层全连接（带 Dropout，乳腺和脑肿瘤还加了 L2 正则）+ 一个 sigmoid 输出。灰度图前面加一层 1×1 卷积，把 1 个通道映射成骨干需要的 3 个通道。
+- **训练**（`models/train_*.py`）：Keras `image_dataset_from_directory` 读数据、像素除以 255；随机翻转、亮度、对比度做数据增强（脑肿瘤数据少，另加旋转、缩放、随机裁剪）；Adam；EarlyStopping、ReduceLROnPlateau；监控 AUC 或准确率。
 - **转换**（`models/convert_all.py`）：`.h5` → `.tflite`，同时生成 `models_config.txt`。
 - **Android 端**（`app/MainActivity.java`）：从 assets 载入 `.tflite`，图片缩放到模型的输入尺寸、按同样方式归一化（灰度取 RGB 平均），用 TFLite `Interpreter` 推理，输出 > 0.5 判为第二类，显示中英文结果和置信度。四个模型在界面上切换。
 
