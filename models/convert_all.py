@@ -10,7 +10,7 @@ print("=" * 60)
 print("🔄 批量TensorFlow Lite模型转换程序")
 print("=" * 60)
 
-BASE_DIR = 'C:/MedicalAI'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 仓库根目录
 MODEL_DIR = f'{BASE_DIR}/models'
 
 # 定义所有模型信息
@@ -41,7 +41,7 @@ MODELS = {
         'tflite_file': 'malaria_model.tflite',
         'name': '疟疾检测',
         'input_type': 'rgb',
-        'input_size': 128
+        'input_size': 150
     }
 }
 

@@ -12,7 +12,7 @@ print("🎀 乳腺超声癌症检测模型训练程序")
 print("=" * 60)
 
 # ========== 配置 ==========
-BASE_DIR = 'C:/MedicalAI'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 仓库根目录
 DATA_DIR = f'{BASE_DIR}/datasets/breast_ultrasound'
 MODEL_DIR = f'{BASE_DIR}/models'
 LABELS_DIR = f'{BASE_DIR}/labels'

@@ -12,7 +12,7 @@ print("🦟 疟疾细胞检测模型训练程序")
 print("=" * 60)
 
 # ========== 配置 ==========
-BASE_DIR = 'C:/MedicalAI'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 仓库根目录
 DATA_DIR = f'{BASE_DIR}/datasets/malaria'
 MODEL_DIR = f'{BASE_DIR}/models'
 LABELS_DIR = f'{BASE_DIR}/labels'
@@ -144,5 +144,5 @@ model.save(f'{MODEL_DIR}/{MODEL_NAME}_model.h5')
 print(f"✅ 模型已保存")
 
 with open(f'{LABELS_DIR}/{MODEL_NAME}_labels.txt', 'w', encoding='utf-8') as f:
-    f.write("UNINFECTED|未感染\nPARASITIZED|感染疟疾\n")
+    f.write("PARASITIZED|感染疟疾\nUNINFECTED|未感染\n")  # 文件夹按字母排序：Parasitized=0，Uninfected=1
 print(f"✅ 标签已保存")

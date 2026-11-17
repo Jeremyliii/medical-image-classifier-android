@@ -1,0 +1,6 @@
+{
+ "pneumonia": {"classes": ["NORMAL", "PNEUMONIA"], "n": 624, "accuracy": 0.8494, "auc": 0.9561, "confusion": [[145, 89], [5, 385]]},
+ "breast": {"classes": ["benign", "malignant"], "n": 161, "accuracy": 0.8509, "auc": 0.912, "confusion": [[101, 5], [19, 36]]},
+ "brain": {"classes": ["no", "yes"], "n": 50, "accuracy": 0.8, "auc": 0.9216, "confusion": [[17, 0], [10, 23]]},
+ "malaria": {"classes": ["Parasitized", "Uninfected"], "n": 5511, "accuracy": 0.9541, "auc": 0.9866, "confusion": [[2519, 198], [55, 2739]]}
+}

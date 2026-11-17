@@ -1,145 +1,70 @@
-# MedicalAI
+# MedicalAI：手机上离线跑的医学图像识别
 
-MedicalAI 是一个医学图像识别项目，包含用于 Android 端部署的 TensorFlow Lite 模型、标签文件、训练脚本、数据集目录以及已打包的 APK。
+一个 Android 应用加四个 TensorFlow Lite 模型：选一张医学图像，在手机本地（不联网）判断肺炎、乳腺肿瘤良恶性、脑肿瘤和疟疾感染。仓库里有训练脚本、转换脚本、数据集、打包好的 APK 和用来复现准确率的评估脚本。
 
-项目目前支持 4 类医学图像识别任务：
+An Android app with four on-device TFLite classifiers (pneumonia X-ray, breast ultrasound, brain MRI, malaria blood cells), transfer-learned from MobileNetV2 / ResNet50V2. Training, conversion and evaluation scripts are included; measured results are below.
 
-| 模型 | 输入尺寸 | 输入类型 | 结果标签 |
-| --- | ---: | --- | --- |
-| 肺炎检测 | 224 x 224 | grayscale | 正常 / 肺炎 |
-| 乳腺癌检测 | 224 x 224 | rgb | 良性 / 恶性 |
-| 脑肿瘤检测 | 224 x 224 | grayscale | 无肿瘤 / 有肿瘤 |
-| 疟疾检测 | 128 x 128 | rgb | 未感染 / 感染疟疾 |
+> 仅用于学习和研究，**不能用于临床诊断**。
 
-## 目录结构
+## 四个模型和实测结果
 
-```text
-C:/MedicalAI
-├── app-apk.apk              # Android 应用安装包
-├── datasets/                # 训练数据集
-│   ├── brain_tumor/
-│   ├── breast_ultrasound/
-│   ├── chest_xray/
-│   └── malaria/
-├── labels/                  # Android 推理结果标签
-│   ├── brain_labels.txt
-│   ├── breast_labels.txt
-│   ├── malaria_labels.txt
-│   └── pneumonia_labels.txt
-└── models/                  # 训练、转换脚本和模型文件
-    ├── train_all.py
-    ├── train_brain.py
-    ├── train_breast.py
-    ├── train_malaria.py
-    ├── train_pneumonia.py
-    ├── convert_all.py
-    ├── models_config.txt
-    ├── *_model.h5
-    ├── *_best.h5
-    └── *_model.tflite
-```
+结果是用 **App 里实际打包的 `.tflite` 模型**，在训练时没参与训练的数据上跑出来的（`evaluation/evaluate_tflite.py`，2026-11 重新测）：
 
-## 快速使用
+| 任务 | 数据 | 骨干网络 | 输入 | 测试图片数 | 准确率 | AUC | 查出率（敏感度） | 正常判对率（特异度） |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 肺炎（胸部 X 光） | [Chest X-Ray Pneumonia](https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia) 自带 test 集 | MobileNetV2（冻结） | 224 灰度 | 624 | 84.9% | 0.956 | 98.7% | 61.9% |
+| 乳腺肿瘤良恶性（超声） | Breast Ultrasound Images，25% 验证集 | ResNet50V2（微调后 20 层） | 224 RGB | 161 | 85.1% | 0.912 | 65.5% | 95.3% |
+| 脑肿瘤（MRI） | Brain MRI Images for Brain Tumor，20% 验证集 | MobileNetV2（冻结） | 224 灰度 | 50 | 80.0% | 0.922 | 69.7% | 100% |
+| 疟疾（血细胞） | [Cell Images for Detecting Malaria](https://www.kaggle.com/datasets/iarunava/cell-images-for-detecting-malaria)，20% 验证集 | MobileNetV2（微调后 30 层） | 150 RGB | 5511 | 95.4% | 0.987 | 92.7% | 98.0% |
 
-### 1. 安装 APK
+怎么读这张表：
 
-将 `app-apk.apk` 复制到 Android 手机或模拟器中安装。应用使用 `models/` 中的 `.tflite` 模型和 `labels/` 中的标签文件进行医学图像分类。
+- **肺炎模型偏向“报病”**：真肺炎几乎都能查出来（390 张漏 5 张），但 234 张正常片里有 89 张被说成肺炎。做初筛可以接受，做诊断不行。原因之一是训练集里肺炎图是正常图的近 3 倍，训练时没加类别权重。
+- **乳腺和脑肿瘤模型偏向“说没事”**：特异度高，但恶性肿瘤漏掉了 35%（55 张漏 19 张），脑肿瘤漏了 30%。对医疗场景来说，漏诊比误报更危险，这两个模型目前的阈值（0.5）并不合适。AUC 都在 0.9 以上，说明调低阈值能换来更高的查出率。
+- **脑肿瘤只有 50 张测试图**，数字波动会很大。
+- **这些数字偏乐观**：训练脚本把同一份验证 / 测试集用来挑最好的那一轮（EarlyStopping / ModelCheckpoint），没有再留一份完全没碰过的数据。
 
-### 2. 查看模型配置
+## 实现
 
-模型配置位于：
+- **迁移学习**：ImageNet 预训练的 MobileNetV2 / ResNet50V2 做骨干，上面接全局池化 + Dropout + 一个 sigmoid 输出。灰度图前面加一层 1×1 卷积，把 1 个通道映射成骨干需要的 3 个通道。
+- **训练**（`models/train_*.py`）：Keras `image_dataset_from_directory` 读数据、像素除以 255、随机翻转 / 旋转 / 缩放做数据增强；Adam；EarlyStopping、ReduceLROnPlateau；监控 AUC 或准确率。
+- **转换**（`models/convert_all.py`）：`.h5` → `.tflite`，同时生成 `models_config.txt`。
+- **Android 端**（`app/MainActivity.java`）：从 assets 载入 `.tflite`，图片缩放到模型的输入尺寸、按同样方式归一化（灰度取 RGB 平均），用 TFLite `Interpreter` 推理，输出 > 0.5 判为第二类，显示中英文结果和置信度。四个模型在界面上切换。
+
+## 目录
 
 ```text
-models/models_config.txt
+app/          MainActivity.java、activity_main.xml、app-apk.apk（可直接安装）
+models/       训练脚本 train_*.py、转换脚本 convert_all.py、四个 .tflite 模型
+labels/       每个模型的标签（顺序 = 数据集文件夹的字母顺序）
+datasets/     四个数据集（约 1.8 GB）
+evaluation/   evaluate_tflite.py（复现上表）、results.json（含混淆矩阵）
 ```
 
-配置格式：
+## 运行
 
-```text
-model_key|tflite_file|input_size|input_type|name_cn
+```bash
+pip install tensorflow scikit-learn
+
+# 复现上面的结果
+python evaluation/evaluate_tflite.py pneumonia breast brain malaria
+
+# 重新训练、转换（路径按仓库位置自动计算）
+python models/train_all.py          # 或 train_pneumonia.py 等单独训练
+python models/convert_all.py
 ```
 
-示例：
+Android：把 `app/app-apk.apk` 装到手机或模拟器即可。
 
-```text
-pneumonia|pneumonia_model.tflite|224|grayscale|肺炎检测
-malaria|malaria_model.tflite|128|rgb|疟疾检测
-```
+## 这次整理改了什么
 
-## 训练模型
+- 训练好的 `.tflite` 模型原来只在 APK 里，现在放进了 `models/`。
+- 疟疾模型的输入是 **150×150**，原文档和 `convert_all.py` 写成了 128；标签文件 `labels/malaria_labels.txt` 的顺序是反的（App 里已经改对了，文件没改），都已修正。
+- 训练 / 转换脚本不再写死 `C:/MedicalAI`，按仓库位置找数据。
+- 加了评估脚本和上面的实测结果。
 
-进入模型目录：
+## 可以继续改进
 
-```powershell
-cd C:/MedicalAI/models
-```
-
-训练全部模型：
-
-```powershell
-python train_all.py
-```
-
-也可以单独训练某个模型：
-
-```powershell
-python train_pneumonia.py
-python train_breast.py
-python train_brain.py
-python train_malaria.py
-```
-
-训练脚本会读取 `C:/MedicalAI/datasets/` 下对应的数据集目录。
-
-## 转换为 TensorFlow Lite
-
-训练得到 `.h5` 模型后，运行批量转换脚本：
-
-```powershell
-cd C:/MedicalAI/models
-python convert_all.py
-```
-
-转换完成后会生成或更新：
-
-- `pneumonia_model.tflite`
-- `breast_model.tflite`
-- `brain_model.tflite`
-- `malaria_model.tflite`
-- `models_config.txt`
-
-## 标签文件
-
-Android 端展示结果时使用 `labels/` 目录中的标签文件：
-
-```text
-pneumonia_labels.txt  NORMAL / PNEUMONIA
-breast_labels.txt     BENIGN / MALIGNANT
-brain_labels.txt      NO_TUMOR / TUMOR
-malaria_labels.txt    UNINFECTED / PARASITIZED
-```
-
-每行格式为：
-
-```text
-label_key|中文显示名称
-```
-
-## 运行环境
-
-训练和转换脚本主要依赖：
-
-- Python 3
-- TensorFlow / Keras
-
-可按需要安装：
-
-```powershell
-pip install tensorflow
-```
-
-## 注意事项
-
-- 当前脚本中的基础路径为 `C:/MedicalAI`，如果移动项目目录，需要同步修改训练和转换脚本中的 `BASE_DIR`。
-- 数据集、`.h5` 模型和 `.tflite` 模型文件体积较大，上传到 GitHub 前建议确认仓库容量和 Git LFS 策略。
-- 医学图像识别结果仅适合作为辅助参考，不能替代专业医生诊断。
+- 训练时加类别权重，或按 AUC 曲线给每个模型单独选阈值（乳腺、脑肿瘤应优先提高查出率）。
+- 留出一份只在最后用一次的测试集，让报告的数字不偏乐观。
+- 脑肿瘤数据太少（253 张），换更大的数据集。

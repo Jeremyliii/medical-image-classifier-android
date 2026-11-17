@@ -17,7 +17,7 @@ print("=" * 60)
 # ========== 1. 配置参数 ==========
 print("\n[1/8] 配置训练参数...")
 
-BASE_DIR = 'C:/MedicalAI'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 仓库根目录
 DATA_DIR = f'{BASE_DIR}/datasets/brain_tumor'
 MODEL_DIR = f'{BASE_DIR}/models'
 LABELS_DIR = f'{BASE_DIR}/labels'

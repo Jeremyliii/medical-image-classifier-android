@@ -12,7 +12,7 @@ print("=" * 70)
 print("🏥 医学图像AI - 批量模型训练程序")
 print("=" * 70)
 
-BASE_DIR = 'C:/MedicalAI'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 仓库根目录
 MODELS_DIR = f'{BASE_DIR}/models'
 
 # 训练脚本列表（按推荐顺序）
